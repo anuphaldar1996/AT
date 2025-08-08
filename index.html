@@ -603,7 +603,6 @@
     return `Partially Present (${presentHours}/${hours} hours)`;
   }
 
-  // Submit attendance to the sheet
   function submitAttendance() {
     const course = attendanceCourseSelect.value;
     const student = attendanceStudentSelect.value;
@@ -618,18 +617,12 @@
     }
     
     const dateString = `${day}-${month}`;
-    const scriptUrl = "https://script.google.com/macros/s/AKfycbyWDT9X7WuaEHKd4p-nQ6G-lTJiWDnIv-9gGM5VxpYTBPEzFN3xOTKX5188FB-dtlDE/exec";
+    const scriptUrl = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
     
     attendanceMessage.style.color = "blue";
-    attendanceMessage.innerHTML = `
-      <strong>Submitting attendance:</strong><br>
-      Student: ${student}<br>
-      Course: ${course}<br>
-      Date: ${dateString}<br>
-      Status: ${getStatusDescription(selectedAttendanceMark)}
-    `;
+    attendanceMessage.innerHTML = `Submitting attendance...`;
     
-    const data = {
+    const payload = {
       course: course,
       student: student,
       mark: selectedAttendanceMark,
@@ -637,53 +630,67 @@
       date: dateString
     };
     
+    // Use fetch with CORS mode
     fetch(scriptUrl, {
       method: "POST",
-      body: JSON.stringify(data),
+      mode: "no-cors", // Important for Google Apps Script
+      redirect: "follow",
+      body: JSON.stringify(payload),
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "text/plain" // Google Apps Script expects this
       }
     })
-    .then(response => response.json())
-    .then(data => {
-      if (data.status === "success") {
-        attendanceMessage.style.color = "green";
-        attendanceMessage.innerHTML = `
-          <strong>Attendance recorded successfully:</strong><br>
-          Student: ${student}<br>
-          Course: ${course}<br>
-          Date: ${dateString}<br>
-          Status: ${selectedAttendanceMark} (${getStatusDescription(selectedAttendanceMark)})
-        `;
-      } else {
-        attendanceMessage.style.color = "red";
-        attendanceMessage.textContent = `Error: ${data.message}`;
+    .then(response => {
+      if (!response.ok) throw new Error("Network error");
+      return response.text(); // Get raw response
+    })
+    .then(text => {
+      try {
+        const data = JSON.parse(text);
+        if (data.status === "success") {
+          showSuccessMessage(data);
+        } else {
+          throw new Error(data.message);
+        }
+      } catch (e) {
+        throw new Error("Invalid response format");
       }
     })
     .catch(error => {
       attendanceMessage.style.color = "red";
-      attendanceMessage.textContent = "Failed to submit attendance. Please try again.";
-      console.error("Error:", error);
-    })
-    .finally(() => {
-      setTimeout(() => {
-        attendanceCourseSelect.value = "";
-        attendanceStudentSelect.value = "";
-        classHoursSelect.value = "1";
-        dateDay.value = "";
-        dateMonth.value = "";
-        selectedAttendanceMark = "";
-        attendanceStudentContainer.classList.add("hidden");
-        attendanceOptionsContainer.classList.add("hidden");
-        attendanceMessage.textContent = "";
-        
-        document.querySelectorAll(".attendance-option").forEach(opt => {
-          opt.classList.remove("selected");
-        });
-      }, 5000);
+      attendanceMessage.textContent = `Error: ${error.message}`;
     });
-  }
+}
 
+function showSuccessMessage(data) {
+  attendanceMessage.style.color = "green";
+  attendanceMessage.innerHTML = `
+    <strong>Attendance recorded successfully:</strong><br>
+    Student: ${data.data.student}<br>
+    Course: ${data.data.course}<br>
+    Date: ${data.data.date}<br>
+    Status: ${data.data.mark}
+  `;
+  
+  // Reset form after 5 seconds
+  setTimeout(resetForm, 5000);
+}
+
+function resetForm() {
+  attendanceCourseSelect.value = "";
+  attendanceStudentSelect.value = "";
+  classHoursSelect.value = "1";
+  dateDay.value = "";
+  dateMonth.value = "";
+  selectedAttendanceMark = "";
+  attendanceStudentContainer.classList.add("hidden");
+  attendanceOptionsContainer.classList.add("hidden");
+  attendanceMessage.textContent = "";
+  
+  document.querySelectorAll(".attendance-option").forEach(opt => {
+    opt.classList.remove("selected");
+  });
+}
   // Download PDF report
   async function downloadPDF() {
     const selectedCourse = facultyCourseSelectDropdown.value;
