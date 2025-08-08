@@ -81,6 +81,22 @@
     th {
       background-color: #f2f2f2;
     }
+    .attendance-options {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .attendance-option {
+      padding: 8px 12px;
+      background-color: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .attendance-option.selected {
+      background-color: #4CAF50;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -147,6 +163,36 @@
           <input type="date" id="toDate"><br><br>
           <button id="downloadBtn" onclick="downloadPDF()">Download Course Report as PDF</button>
         </div>
+
+        <!-- New Attendance Submission Section -->
+        <div id="attendanceSubmissionContainer" class="hidden">
+          <h3>Submit Attendance</h3>
+          <label for="attendanceCourseSelect">Select Course:</label><br>
+          <select id="attendanceCourseSelect">
+            <option value="">-- Select a course --</option>
+          </select><br><br>
+          
+          <div id="attendanceStudentContainer" class="hidden">
+            <label for="attendanceStudentSelect">Select Student:</label><br>
+            <select id="attendanceStudentSelect">
+              <option value="">-- Select a student --</option>
+            </select><br><br>
+            
+            <label for="classHours">Select Class Duration:</label><br>
+            <select id="classHours">
+              <option value="1">1 Hour</option>
+              <option value="2">2 Hours</option>
+              <option value="3">3 Hours</option>
+            </select><br><br>
+            
+            <div id="attendanceOptionsContainer" class="hidden">
+              <label>Select Attendance Status:</label><br>
+              <div id="attendanceOptions" class="attendance-options"></div>
+              <button id="submitAttendanceBtn" onclick="submitAttendance()" style="margin-top: 10px;">Submit Attendance</button>
+              <p id="attendanceMessage" style="color: green;"></p>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -169,57 +215,68 @@
   const facultyCourseSelect = document.getElementById("facultyCourseSelect");
   const studentSection = document.getElementById("studentSection");
 
+  // New attendance submission elements
+  const attendanceSubmissionContainer = document.getElementById("attendanceSubmissionContainer");
+  const attendanceCourseSelect = document.getElementById("attendanceCourseSelect");
+  const attendanceStudentContainer = document.getElementById("attendanceStudentContainer");
+  const attendanceStudentSelect = document.getElementById("attendanceStudentSelect");
+  const classHoursSelect = document.getElementById("classHours");
+  const attendanceOptionsContainer = document.getElementById("attendanceOptionsContainer");
+  const attendanceOptions = document.getElementById("attendanceOptions");
+  const submitAttendanceBtn = document.getElementById("submitAttendanceBtn");
+  const attendanceMessage = document.getElementById("attendanceMessage");
+
   let semesterName = "";
   let attendanceData = {};
+  let selectedAttendanceMark = "";
 
   // NEW IMPROVED MARK PROCESSING FUNCTION
-  // NEW IMPROVED MARK PROCESSING FUNCTION
-function processAttendanceMarks(marks, headers) {
-  let processed = [];
+  function processAttendanceMarks(marks, headers) {
+    let processed = [];
 
-  for (let i = 0; i < marks.length; i++) {
-    const mark = marks[i].trim();
-    if (mark === '') continue;
+    for (let i = 0; i < marks.length; i++) {
+      const mark = marks[i].trim();
+      if (mark === '') continue;
 
-    const date = headers[i];
-    const upperMark = mark.toUpperCase();
+      const date = headers[i];
+      const upperMark = mark.toUpperCase();
 
-    // Handle 3-hour class
-    if (upperMark === 'PPP') {
-      processed.push({ date, mark: upperMark, hours: 3, status: 'Present', presentHours: 3 });
-    } 
-    else if (upperMark === 'AAA') {
-      processed.push({ date, mark: upperMark, hours: 3, status: 'Absent', presentHours: 0 });
-    } 
-    else if (['PPA', 'APP', 'PAP'].includes(upperMark)) {
-      processed.push({ date, mark: upperMark, hours: 3, status: 'Partial', presentHours: 2 });
-    } 
-    else if (['PAA', 'APA', 'AAP'].includes(upperMark)) {
-      processed.push({ date, mark: upperMark, hours: 3, status: 'Partial', presentHours: 1 });
+      // Handle 3-hour class
+      if (upperMark === 'PPP') {
+        processed.push({ date, mark: upperMark, hours: 3, status: 'Present', presentHours: 3 });
+      } 
+      else if (upperMark === 'AAA') {
+        processed.push({ date, mark: upperMark, hours: 3, status: 'Absent', presentHours: 0 });
+      } 
+      else if (['PPA', 'APP', 'PAP'].includes(upperMark)) {
+        processed.push({ date, mark: upperMark, hours: 3, status: 'Partial', presentHours: 2 });
+      } 
+      else if (['PAA', 'APA', 'AAP'].includes(upperMark)) {
+        processed.push({ date, mark: upperMark, hours: 3, status: 'Partial', presentHours: 1 });
+      }
+
+      // Handle 2-hour class
+      else if (upperMark === 'PP') {
+        processed.push({ date, mark: 'PP', hours: 2, status: 'Present', presentHours: 2 });
+      } 
+      else if (upperMark === 'AA') {
+        processed.push({ date, mark: 'AA', hours: 2, status: 'Absent', presentHours: 0 });
+      } 
+      else if (upperMark === 'AP' || upperMark === 'PA') {
+        processed.push({ date, mark: upperMark, hours: 2, status: 'Partial', presentHours: 1 });
+      }
+
+      // Handle 1-hour class
+      else if (upperMark === 'P') {
+        processed.push({ date, mark: 'P', hours: 1, status: 'Present', presentHours: 1 });
+      } 
+      else if (upperMark === 'A') {
+        processed.push({ date, mark: 'A', hours: 1, status: 'Absent', presentHours: 0 });
+      }
     }
 
-    // Handle 2-hour class
-    else if (upperMark === 'PP') {
-      processed.push({ date, mark: 'PP', hours: 2, status: 'Present', presentHours: 2 });
-    } 
-    else if (upperMark === 'AA') {
-      processed.push({ date, mark: 'AA', hours: 2, status: 'Absent', presentHours: 0 });
-    } 
-    else if (upperMark === 'AP' || upperMark === 'PA') {
-      processed.push({ date, mark: upperMark, hours: 2, status: 'Partial', presentHours: 1 });
-    }
-
-    // Handle 1-hour class
-    else if (upperMark === 'P') {
-      processed.push({ date, mark: 'P', hours: 1, status: 'Present', presentHours: 1 });
-    } 
-    else if (upperMark === 'A') {
-      processed.push({ date, mark: 'A', hours: 1, status: 'Absent', presentHours: 0 });
-    }
+    return processed;
   }
-
-  return processed;
-}
 
   // Fetch data from Google Sheets
   fetch(csvUrl)
@@ -283,6 +340,9 @@ function processAttendanceMarks(marks, headers) {
         
         const facultyOpt = opt.cloneNode(true);
         facultyCourseSelectDropdown.appendChild(facultyOpt);
+        
+        const attendanceOpt = opt.cloneNode(true);
+        attendanceCourseSelect.appendChild(attendanceOpt);
       });
     })
     .catch(error => {
@@ -365,6 +425,7 @@ function processAttendanceMarks(marks, headers) {
       message.textContent = "Login successful. Please select subject.";
       studentSection.classList.add("hidden");
       facultyCourseSelect.classList.remove("hidden");
+      attendanceSubmissionContainer.classList.remove("hidden");
       
       document.getElementById("adminId").value = "";
       document.getElementById("adminPass").value = "";
@@ -387,13 +448,133 @@ function processAttendanceMarks(marks, headers) {
         }
       });
 
+      // Setup attendance course selection
+      attendanceCourseSelect.addEventListener("change", () => {
+        const selectedCourse = attendanceCourseSelect.value;
+        attendanceStudentContainer.classList.toggle("hidden", !selectedCourse);
+        attendanceOptionsContainer.classList.add("hidden");
+        attendanceStudentSelect.innerHTML = '<option value="">-- Select a student --</option>';
+        
+        if (selectedCourse) {
+          attendanceData[selectedCourse].forEach(student => {
+            const opt = document.createElement("option");
+            opt.value = student.name;
+            opt.textContent = student.name;
+            attendanceStudentSelect.appendChild(opt);
+          });
+        }
+      });
+
+      // Setup student selection for attendance
+      attendanceStudentSelect.addEventListener("change", () => {
+        const selectedStudent = attendanceStudentSelect.value;
+        attendanceOptionsContainer.classList.toggle("hidden", !selectedStudent);
+        
+        if (selectedStudent) {
+          updateAttendanceOptions();
+        }
+      });
+
+      // Update attendance options when class hours change
+      classHoursSelect.addEventListener("change", updateAttendanceOptions);
+
     } else {
       downloadContainer.classList.add("hidden");
       semesterContainer.classList.add("hidden");
       facultyCourseSelect.classList.add("hidden");
+      attendanceSubmissionContainer.classList.add("hidden");
       message.style.color = "red";
       message.textContent = "Invalid ID or Password.";
     }
+  }
+
+  // Update attendance options based on selected class hours
+  function updateAttendanceOptions() {
+    const hours = parseInt(classHoursSelect.value);
+    attendanceOptions.innerHTML = "";
+    selectedAttendanceMark = "";
+    
+    if (hours === 1) {
+      createAttendanceOption("P", "Present");
+      createAttendanceOption("A", "Absent");
+    } else if (hours === 2) {
+      createAttendanceOption("PP", "Present for both hours");
+      createAttendanceOption("PA", "Present first hour, Absent second");
+      createAttendanceOption("AP", "Absent first hour, Present second");
+      createAttendanceOption("AA", "Absent for both hours");
+    } else if (hours === 3) {
+      createAttendanceOption("PPP", "Present for all hours");
+      createAttendanceOption("PPA", "Present first two, Absent last");
+      createAttendanceOption("PAP", "Present first and last, Absent middle");
+      createAttendanceOption("APP", "Absent first, Present last two");
+      createAttendanceOption("PAA", "Present first, Absent last two");
+      createAttendanceOption("APA", "Absent first and last, Present middle");
+      createAttendanceOption("AAP", "Absent first two, Present last");
+      createAttendanceOption("AAA", "Absent for all hours");
+    }
+  }
+
+  // Create an attendance option button
+  function createAttendanceOption(value, label) {
+    const option = document.createElement("div");
+    option.className = "attendance-option";
+    option.textContent = label;
+    option.dataset.value = value;
+    
+    option.addEventListener("click", () => {
+      // Remove selected class from all options
+      document.querySelectorAll(".attendance-option").forEach(opt => {
+        opt.classList.remove("selected");
+      });
+      
+      // Add selected class to clicked option
+      option.classList.add("selected");
+      selectedAttendanceMark = value;
+    });
+    
+    attendanceOptions.appendChild(option);
+  }
+
+  // Submit attendance to the sheet (simulated - would need Google Apps Script in real implementation)
+  function submitAttendance() {
+    const course = attendanceCourseSelect.value;
+    const student = attendanceStudentSelect.value;
+    const hours = classHoursSelect.value;
+    
+    if (!course || !student || !selectedAttendanceMark) {
+      attendanceMessage.style.color = "red";
+      attendanceMessage.textContent = "Please select all fields and an attendance status.";
+      return;
+    }
+    
+    // In a real implementation, you would send this data to your Google Sheet
+    // For now, we'll just display a success message
+    attendanceMessage.style.color = "green";
+    attendanceMessage.textContent = `Attendance recorded for ${student}: ${selectedAttendanceMark} (${hours} hour class)`;
+    
+    console.log("Attendance submission:", {
+      course,
+      student,
+      hours,
+      mark: selectedAttendanceMark,
+      date: new Date().toLocaleDateString()
+    });
+    
+    // Reset form after submission
+    setTimeout(() => {
+      attendanceCourseSelect.value = "";
+      attendanceStudentSelect.value = "";
+      classHoursSelect.value = "1";
+      selectedAttendanceMark = "";
+      attendanceStudentContainer.classList.add("hidden");
+      attendanceOptionsContainer.classList.add("hidden");
+      attendanceMessage.textContent = "";
+      
+      // Remove selected class from all options
+      document.querySelectorAll(".attendance-option").forEach(opt => {
+        opt.classList.remove("selected");
+      });
+    }, 3000);
   }
 
   // Download PDF report
