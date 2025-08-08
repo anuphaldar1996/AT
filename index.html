@@ -85,6 +85,7 @@
       display: flex;
       gap: 10px;
       margin-top: 10px;
+      flex-wrap: wrap;
     }
     .attendance-option {
       padding: 8px 12px;
@@ -92,10 +93,33 @@
       border: 1px solid #ddd;
       border-radius: 4px;
       cursor: pointer;
+      min-width: 80px;
+      text-align: center;
     }
     .attendance-option.selected {
       background-color: #4CAF50;
       color: white;
+    }
+    .date-input-container {
+      margin-top: 10px;
+    }
+    .date-input-fields {
+      display: flex;
+      gap: 10px;
+    }
+    .date-input-fields select, .date-input-fields input {
+      flex: 1;
+    }
+    #attendanceDurationInfo {
+      margin-bottom: 10px;
+      padding: 8px;
+      background: #f8f8f8;
+      border-radius: 4px;
+    }
+    #attendanceMessage {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
     }
   </style>
 </head>
@@ -164,7 +188,7 @@
           <button id="downloadBtn" onclick="downloadPDF()">Download Course Report as PDF</button>
         </div>
 
-        <!-- New Attendance Submission Section -->
+        <!-- Updated Attendance Submission Section -->
         <div id="attendanceSubmissionContainer" class="hidden">
           <h3>Submit Attendance</h3>
           <label for="attendanceCourseSelect">Select Course:</label><br>
@@ -178,6 +202,30 @@
               <option value="">-- Select a student --</option>
             </select><br><br>
             
+            <div class="date-input-container">
+              <label>Select Date:</label>
+              <div class="date-input-fields">
+                <select id="dateDay">
+                  <option value="">Day</option>
+                </select>
+                <select id="dateMonth">
+                  <option value="">Month</option>
+                  <option value="Jan">January</option>
+                  <option value="Feb">February</option>
+                  <option value="Mar">March</option>
+                  <option value="Apr">April</option>
+                  <option value="May">May</option>
+                  <option value="Jun">June</option>
+                  <option value="Jul">July</option>
+                  <option value="Aug">August</option>
+                  <option value="Sep">September</option>
+                  <option value="Oct">October</option>
+                  <option value="Nov">November</option>
+                  <option value="Dec">December</option>
+                </select>
+              </div>
+            </div><br>
+            
             <label for="classHours">Select Class Duration:</label><br>
             <select id="classHours">
               <option value="1">1 Hour</option>
@@ -187,9 +235,10 @@
             
             <div id="attendanceOptionsContainer" class="hidden">
               <label>Select Attendance Status:</label><br>
+              <div id="attendanceDurationInfo"></div>
               <div id="attendanceOptions" class="attendance-options"></div>
               <button id="submitAttendanceBtn" onclick="submitAttendance()" style="margin-top: 10px;">Submit Attendance</button>
-              <p id="attendanceMessage" style="color: green;"></p>
+              <p id="attendanceMessage"></p>
             </div>
           </div>
         </div>
@@ -215,7 +264,7 @@
   const facultyCourseSelect = document.getElementById("facultyCourseSelect");
   const studentSection = document.getElementById("studentSection");
 
-  // New attendance submission elements
+  // Attendance submission elements
   const attendanceSubmissionContainer = document.getElementById("attendanceSubmissionContainer");
   const attendanceCourseSelect = document.getElementById("attendanceCourseSelect");
   const attendanceStudentContainer = document.getElementById("attendanceStudentContainer");
@@ -225,12 +274,26 @@
   const attendanceOptions = document.getElementById("attendanceOptions");
   const submitAttendanceBtn = document.getElementById("submitAttendanceBtn");
   const attendanceMessage = document.getElementById("attendanceMessage");
+  const dateDay = document.getElementById("dateDay");
+  const dateMonth = document.getElementById("dateMonth");
 
   let semesterName = "";
   let attendanceData = {};
   let selectedAttendanceMark = "";
 
-  // NEW IMPROVED MARK PROCESSING FUNCTION
+  // Initialize day dropdown
+  function populateDayDropdown() {
+    dateDay.innerHTML = '<option value="">Day</option>';
+    for (let i = 1; i <= 31; i++) {
+      const day = i < 10 ? `0${i}` : `${i}`;
+      const option = document.createElement("option");
+      option.value = day;
+      option.textContent = day;
+      dateDay.appendChild(option);
+    }
+  }
+
+  // Process attendance marks
   function processAttendanceMarks(marks, headers) {
     let processed = [];
 
@@ -282,10 +345,8 @@
   fetch(csvUrl)
     .then(res => res.text())
     .then(data => {
-      // First normalize line endings
       const normalizedData = data.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const rows = normalizedData.trim().split("\n").map(row => {
-        // Handle quoted fields with commas
         const temp = [];
         let inQuotes = false;
         let currentField = '';
@@ -374,10 +435,6 @@
     const student = attendanceData[course].find(s => s.name === studentName);
     if (!student) return;
 
-    // Debug log to verify data
-    console.log("Processing attendance for:", studentName);
-    console.log("Processed marks:", student.processedMarks);
-
     const percentage = student.totalHours ? ((student.presentHours / student.totalHours) * 100).toFixed(2) : "0";
     const percentageClass = percentage < 75 ? 'red-text' : 'green-text';
 
@@ -429,6 +486,7 @@
       
       document.getElementById("adminId").value = "";
       document.getElementById("adminPass").value = "";
+      populateDayDropdown();
 
       facultyCourseSelectDropdown.addEventListener("change", () => {
         if (facultyCourseSelectDropdown.value) {
@@ -494,23 +552,26 @@
     attendanceOptions.innerHTML = "";
     selectedAttendanceMark = "";
     
+    const durationInfo = document.getElementById("attendanceDurationInfo");
+    durationInfo.innerHTML = `<p>Class Duration: <strong>${hours} hour${hours > 1 ? 's' : ''}</strong></p>`;
+    
     if (hours === 1) {
-      createAttendanceOption("P", "Present");
-      createAttendanceOption("A", "Absent");
+      createAttendanceOption("P", "Present (P)");
+      createAttendanceOption("A", "Absent (A)");
     } else if (hours === 2) {
-      createAttendanceOption("PP", "Present for both hours");
-      createAttendanceOption("PA", "Present first hour, Absent second");
-      createAttendanceOption("AP", "Absent first hour, Present second");
-      createAttendanceOption("AA", "Absent for both hours");
+      createAttendanceOption("PP", "Present both hours (PP)");
+      createAttendanceOption("PA", "Present first, Absent second (PA)");
+      createAttendanceOption("AP", "Absent first, Present second (AP)");
+      createAttendanceOption("AA", "Absent both hours (AA)");
     } else if (hours === 3) {
-      createAttendanceOption("PPP", "Present for all hours");
-      createAttendanceOption("PPA", "Present first two, Absent last");
-      createAttendanceOption("PAP", "Present first and last, Absent middle");
-      createAttendanceOption("APP", "Absent first, Present last two");
-      createAttendanceOption("PAA", "Present first, Absent last two");
-      createAttendanceOption("APA", "Absent first and last, Present middle");
-      createAttendanceOption("AAP", "Absent first two, Present last");
-      createAttendanceOption("AAA", "Absent for all hours");
+      createAttendanceOption("PPP", "Present all hours (PPP)");
+      createAttendanceOption("PPA", "Present first two, Absent last (PPA)");
+      createAttendanceOption("PAP", "Present first/last, Absent middle (PAP)");
+      createAttendanceOption("APP", "Absent first, Present last two (APP)");
+      createAttendanceOption("PAA", "Present first, Absent last two (PAA)");
+      createAttendanceOption("APA", "Absent first/last, Present middle (APA)");
+      createAttendanceOption("AAP", "Absent first two, Present last (AAP)");
+      createAttendanceOption("AAA", "Absent all hours (AAA)");
     }
   }
 
@@ -522,12 +583,9 @@
     option.dataset.value = value;
     
     option.addEventListener("click", () => {
-      // Remove selected class from all options
       document.querySelectorAll(".attendance-option").forEach(opt => {
         opt.classList.remove("selected");
       });
-      
-      // Add selected class to clicked option
       option.classList.add("selected");
       selectedAttendanceMark = value;
     });
@@ -535,46 +593,95 @@
     attendanceOptions.appendChild(option);
   }
 
-  // Submit attendance to the sheet (simulated - would need Google Apps Script in real implementation)
+  // Get status description
+  function getStatusDescription(mark) {
+    const hours = mark.length;
+    const presentHours = (mark.match(/P/g) || []).length;
+    
+    if (presentHours === hours) return "Fully Present";
+    if (presentHours === 0) return "Fully Absent";
+    return `Partially Present (${presentHours}/${hours} hours)`;
+  }
+
+  // Submit attendance to the sheet
   function submitAttendance() {
     const course = attendanceCourseSelect.value;
     const student = attendanceStudentSelect.value;
     const hours = classHoursSelect.value;
+    const day = dateDay.value;
+    const month = dateMonth.value;
     
-    if (!course || !student || !selectedAttendanceMark) {
+    if (!course || !student || !selectedAttendanceMark || !day || !month) {
       attendanceMessage.style.color = "red";
-      attendanceMessage.textContent = "Please select all fields and an attendance status.";
+      attendanceMessage.textContent = "Please complete all fields including date and attendance status.";
       return;
     }
     
-    // In a real implementation, you would send this data to your Google Sheet
-    // For now, we'll just display a success message
-    attendanceMessage.style.color = "green";
-    attendanceMessage.textContent = `Attendance recorded for ${student}: ${selectedAttendanceMark} (${hours} hour class)`;
+    const dateString = `${day}-${month}`;
+    const scriptUrl = "YOUR_WEB_APP_URL";
     
-    console.log("Attendance submission:", {
-      course,
-      student,
-      hours,
+    attendanceMessage.style.color = "blue";
+    attendanceMessage.innerHTML = `
+      <strong>Submitting attendance:</strong><br>
+      Student: ${student}<br>
+      Course: ${course}<br>
+      Date: ${dateString}<br>
+      Status: ${getStatusDescription(selectedAttendanceMark)}
+    `;
+    
+    const data = {
+      course: course,
+      student: student,
       mark: selectedAttendanceMark,
-      date: new Date().toLocaleDateString()
-    });
+      hours: hours,
+      date: dateString
+    };
     
-    // Reset form after submission
-    setTimeout(() => {
-      attendanceCourseSelect.value = "";
-      attendanceStudentSelect.value = "";
-      classHoursSelect.value = "1";
-      selectedAttendanceMark = "";
-      attendanceStudentContainer.classList.add("hidden");
-      attendanceOptionsContainer.classList.add("hidden");
-      attendanceMessage.textContent = "";
-      
-      // Remove selected class from all options
-      document.querySelectorAll(".attendance-option").forEach(opt => {
-        opt.classList.remove("selected");
-      });
-    }, 3000);
+    fetch(scriptUrl, {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === "success") {
+        attendanceMessage.style.color = "green";
+        attendanceMessage.innerHTML = `
+          <strong>Attendance recorded successfully:</strong><br>
+          Student: ${student}<br>
+          Course: ${course}<br>
+          Date: ${dateString}<br>
+          Status: ${selectedAttendanceMark} (${getStatusDescription(selectedAttendanceMark)})
+        `;
+      } else {
+        attendanceMessage.style.color = "red";
+        attendanceMessage.textContent = `Error: ${data.message}`;
+      }
+    })
+    .catch(error => {
+      attendanceMessage.style.color = "red";
+      attendanceMessage.textContent = "Failed to submit attendance. Please try again.";
+      console.error("Error:", error);
+    })
+    .finally(() => {
+      setTimeout(() => {
+        attendanceCourseSelect.value = "";
+        attendanceStudentSelect.value = "";
+        classHoursSelect.value = "1";
+        dateDay.value = "";
+        dateMonth.value = "";
+        selectedAttendanceMark = "";
+        attendanceStudentContainer.classList.add("hidden");
+        attendanceOptionsContainer.classList.add("hidden");
+        attendanceMessage.textContent = "";
+        
+        document.querySelectorAll(".attendance-option").forEach(opt => {
+          opt.classList.remove("selected");
+        });
+      }, 5000);
+    });
   }
 
   // Download PDF report
