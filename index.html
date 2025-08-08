@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Attendance Viewer: Department of Mathematics</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: lightyellow;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    main {
+      flex: 1;
+      padding: 20px;
+    }
+    select, button, input {
+      margin-top: 10px;
+      padding: 8px;
+    }
+    #result, #detailReport {
+      margin-top: 20px;
+      padding: 15px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    h1 {
+      color: limegreen;
+      text-align: center;
+      margin-bottom: 5px;
+    }
+    h2 {
+      color: orangered;
+    }
+    .button {
+      margin-top: 10px;
+      padding: 15px;
+      background-color: blanchedalmond;
+      border: 2px solid #ddd;
+      border-radius: 5px;
+    }
+    footer {
+      background-color: #333;
+      color: white;
+      text-align: center;
+      padding: 12px;
+    }
+    .red-text {
+      color: red;
+      font-weight: bold;
+    }
+    .green-text {
+      color: green;
+      font-weight: bold;
+    }
+    .yellow-text {
+      color: #FF8C00;
+      font-weight: bold;
+    }
+    .hidden {
+      display: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <main>
+      <h1>Department of Mathematics</h1>
+      <h1>A.P.C. Roy Govt. College</h1>
+
+      <div class="button">
+        <div id="studentSection">
+          <label for="courseSelect">Select subject:</label><br>
+          <select id="courseSelect">
+            <option value="">-- Select a course --</option>
+          </select><br><br>
+
+          <label for="studentSelect">Select your name:</label><br>
+          <select id="studentSelect">
+            <option value="">-- Select a student --</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="result"></div>
+      <div id="detailReport"></div>
+
+      <h2>Restricted Access: Faculty Use Only</h2>
+
+      <div style="border: 2px solid blue;" class="button">
+        <div id="authSection">
+          <label for="adminId">Enter ID:</label><br>
+          <input type="text" id="adminId" placeholder="Enter ID"><br><br>
+          <label for="adminPass">Enter Password:</label><br>
+          <input type="password" id="adminPass" placeholder="Enter Password"><br><br>
+          <button onclick="checkAuth()">Login</button>
+          <p id="authMessage" style="color: red;"></p>
+        </div>
+
+        <div id="facultyCourseSelect" class="hidden">
+          <label for="facultyCourseSelectDropdown">Select subject:</label><br>
+          <select id="facultyCourseSelectDropdown">
+            <option value="">-- Select a course --</option>
+          </select><br><br>
+        </div>
+
+        <div id="semesterContainer" class="hidden">
+          <label for="semesterSelect">Select Semester:</label><br>
+          <select id="semesterSelect">
+            <option value="">-- Select Semester --</option>
+            <option>Semester I</option>
+            <option>Semester II</option>
+            <option>Semester III</option>
+            <option>Semester IV</option>
+            <option>Semester V</option>
+            <option>Semester VI</option>
+            <option>Semester VII</option>
+            <option>Semester VIII</option>
+          </select><br><br>
+        </div>
+
+        <div id="downloadContainer" class="hidden">
+          <label for="fromDate">From Date:</label>
+          <input type="date" id="fromDate">
+          <label for="toDate">To Date:</label>
+          <input type="date" id="toDate"><br><br>
+          <button id="downloadBtn" onclick="downloadPDF()">Download Course Report as PDF</button>
+        </div>
+      </div>
+    </main>
+
+    <footer>&copy; 2025, Department of Mathematics, A.P.C. Roy Govt. College</footer>
+  </div>
+
+<script>
+  const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQPefTUtU2h-BLqI02ebABq7DnNQ2xYSAENEI-HQ_2B0P_WW_Tf832B02QgML3UaVejT0ln-ShYJoqs/pub?output=csv";
+
+  // DOM Elements
+  const courseSelect = document.getElementById("courseSelect");
+  const facultyCourseSelectDropdown = document.getElementById("facultyCourseSelectDropdown");
+  const studentSelect = document.getElementById("studentSelect");
+  const resultDiv = document.getElementById("result");
+  const detailReportDiv = document.getElementById("detailReport");
+
+  const downloadContainer = document.getElementById("downloadContainer");
+  const semesterContainer = document.getElementById("semesterContainer");
+  const semesterSelect = document.getElementById("semesterSelect");
+  const facultyCourseSelect = document.getElementById("facultyCourseSelect");
+  const studentSection = document.getElementById("studentSection");
+
+  let semesterName = "";
+  let attendanceData = {};
+
+  // NEW IMPROVED MARK PROCESSING FUNCTION
+  // NEW IMPROVED MARK PROCESSING FUNCTION
+function processAttendanceMarks(marks, headers) {
+  let processed = [];
+
+  for (let i = 0; i < marks.length; i++) {
+    const mark = marks[i].trim();
+    if (mark === '') continue;
+
+    const date = headers[i];
+    const upperMark = mark.toUpperCase();
+
+    // Handle 3-hour class
+    if (upperMark === 'PPP') {
+      processed.push({ date, mark: upperMark, hours: 3, status: 'Present', presentHours: 3 });
+    } 
+    else if (upperMark === 'AAA') {
+      processed.push({ date, mark: upperMark, hours: 3, status: 'Absent', presentHours: 0 });
+    } 
+    else if (['PPA', 'APP', 'PAP'].includes(upperMark)) {
+      processed.push({ date, mark: upperMark, hours: 3, status: 'Partial', presentHours: 2 });
+    } 
+    else if (['PAA', 'APA', 'AAP'].includes(upperMark)) {
+      processed.push({ date, mark: upperMark, hours: 3, status: 'Partial', presentHours: 1 });
+    }
+
+    // Handle 2-hour class
+    else if (upperMark === 'PP') {
+      processed.push({ date, mark: 'PP', hours: 2, status: 'Present', presentHours: 2 });
+    } 
+    else if (upperMark === 'AA') {
+      processed.push({ date, mark: 'AA', hours: 2, status: 'Absent', presentHours: 0 });
+    } 
+    else if (upperMark === 'AP' || upperMark === 'PA') {
+      processed.push({ date, mark: upperMark, hours: 2, status: 'Partial', presentHours: 1 });
+    }
+
+    // Handle 1-hour class
+    else if (upperMark === 'P') {
+      processed.push({ date, mark: 'P', hours: 1, status: 'Present', presentHours: 1 });
+    } 
+    else if (upperMark === 'A') {
+      processed.push({ date, mark: 'A', hours: 1, status: 'Absent', presentHours: 0 });
+    }
+  }
+
+  return processed;
+}
+
+  // Fetch data from Google Sheets
+  fetch(csvUrl)
+    .then(res => res.text())
+    .then(data => {
+      // First normalize line endings
+      const normalizedData = data.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const rows = normalizedData.trim().split("\n").map(row => {
+        // Handle quoted fields with commas
+        const temp = [];
+        let inQuotes = false;
+        let currentField = '';
+        
+        for (let i = 0; i < row.length; i++) {
+          const char = row[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            temp.push(currentField);
+            currentField = '';
+          } else {
+            currentField += char;
+          }
+        }
+        temp.push(currentField);
+        return temp;
+      });
+      
+      const headers = rows[0].map(h => h.trim());
+      const courseIndex = headers.indexOf("Course Name");
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const course = row[courseIndex].trim();
+        const name = row[0].trim();
+        const marks = row.slice(courseIndex + 1).map(m => m.trim());
+
+        if (!attendanceData[course]) attendanceData[course] = [];
+
+        const processedMarks = processAttendanceMarks(marks, headers.slice(courseIndex + 1));
+        
+        const totalHours = processedMarks.reduce((sum, m) => sum + m.hours, 0);
+        const presentHours = processedMarks.reduce((sum, m) => sum + (m.presentHours || 0), 0);
+
+        attendanceData[course].push({
+          name,
+          marks,
+          processedMarks,
+          totalHours,
+          presentHours,
+          headers: headers.slice(courseIndex + 1)
+        });
+      }
+
+      // Populate course dropdowns
+      Object.keys(attendanceData).forEach(course => {
+        const opt = document.createElement("option");
+        opt.value = course;
+        opt.textContent = course;
+        courseSelect.appendChild(opt);
+        
+        const facultyOpt = opt.cloneNode(true);
+        facultyCourseSelectDropdown.appendChild(facultyOpt);
+      });
+    })
+    .catch(error => {
+      console.error("Error loading attendance data:", error);
+      alert("Failed to load attendance data. Please check the CSV link.");
+    });
+
+  // When course is selected, populate students
+  courseSelect.addEventListener("change", () => {
+    studentSelect.innerHTML = '<option value="">-- Select a student --</option>';
+    resultDiv.innerHTML = "";
+    detailReportDiv.innerHTML = "";
+
+    const selectedCourse = courseSelect.value;
+    if (!selectedCourse) return;
+
+    attendanceData[selectedCourse].forEach(student => {
+      const opt = document.createElement("option");
+      opt.value = student.name;
+      opt.textContent = student.name;
+      studentSelect.appendChild(opt);
+    });
+  });
+
+  // When student is selected, show attendance
+  studentSelect.addEventListener("change", () => {
+    const course = courseSelect.value;
+    const studentName = studentSelect.value;
+    const student = attendanceData[course].find(s => s.name === studentName);
+    if (!student) return;
+
+    // Debug log to verify data
+    console.log("Processing attendance for:", studentName);
+    console.log("Processed marks:", student.processedMarks);
+
+    const percentage = student.totalHours ? ((student.presentHours / student.totalHours) * 100).toFixed(2) : "0";
+    const percentageClass = percentage < 75 ? 'red-text' : 'green-text';
+
+    resultDiv.innerHTML = `
+      <h3>Attendance for ${student.name}</h3>
+      <p><strong>Total Hours Held:</strong> ${student.totalHours}</p>
+      <p><strong>Present Hours:</strong> ${student.presentHours}</p>
+      <p><strong>Attendance Percentage:</strong> <span class="${percentageClass}">${percentage}%</span></p>
+    `;
+
+    let detailHTML = `<h4>Detailed Attendance:</h4><table>
+      <tr><th>Date</th><th>Status</th><th>Duration</th><th>Hours Present</th></tr>`;
+    
+    student.processedMarks.forEach(entry => {
+      let statusClass = '';
+      if (entry.status === 'Present') statusClass = 'green-text';
+      else if (entry.status === 'Absent') statusClass = 'red-text';
+      else statusClass = 'yellow-text';
+      
+      detailHTML += `
+        <tr>
+          <td>${entry.date}</td>
+          <td class="${statusClass}">${entry.status}</td>
+          <td>${entry.hours} hour${entry.hours > 1 ? 's' : ''}</td>
+          <td>${entry.presentHours || 0}</td>
+        </tr>
+      `;
+    });
+    
+    detailHTML += "</table>";
+    detailReportDiv.innerHTML = detailHTML;
+  });
+
+  // Faculty login
+  function checkAuth() {
+    const id = document.getElementById("adminId").value.trim();
+    const pass = document.getElementById("adminPass").value.trim();
+    const message = document.getElementById("authMessage");
+
+    const correctId = "admin";
+    const correctPass = "7699";
+
+    if (id === correctId && pass === correctPass) {
+      message.style.color = "green";
+      message.textContent = "Login successful. Please select subject.";
+      studentSection.classList.add("hidden");
+      facultyCourseSelect.classList.remove("hidden");
+      
+      document.getElementById("adminId").value = "";
+      document.getElementById("adminPass").value = "";
+
+      facultyCourseSelectDropdown.addEventListener("change", () => {
+        if (facultyCourseSelectDropdown.value) {
+          semesterContainer.classList.remove("hidden");
+        } else {
+          semesterContainer.classList.add("hidden");
+          downloadContainer.classList.add("hidden");
+        }
+      });
+
+      semesterSelect.addEventListener("change", () => {
+        semesterName = semesterSelect.value || "Semester - ?";
+        if (semesterName !== "") {
+          downloadContainer.classList.remove("hidden");
+        } else {
+          downloadContainer.classList.add("hidden");
+        }
+      });
+
+    } else {
+      downloadContainer.classList.add("hidden");
+      semesterContainer.classList.add("hidden");
+      facultyCourseSelect.classList.add("hidden");
+      message.style.color = "red";
+      message.textContent = "Invalid ID or Password.";
+    }
+  }
+
+  // Download PDF report
+  async function downloadPDF() {
+    const selectedCourse = facultyCourseSelectDropdown.value;
+    const fromDate = document.getElementById("fromDate").value;
+    const toDate = document.getElementById("toDate").value;
+
+    if (!selectedCourse || !attendanceData[selectedCourse]) {
+      alert("Please select a course first.");
+      return;
+    }
+
+    const from = fromDate ? new Date(fromDate) : null;
+    const to = toDate ? new Date(toDate) : new Date();
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 20;
+
+    const centerText = (text, yOffset) => {
+      const textWidth = doc.getTextWidth(text);
+      const x = (pageWidth - textWidth) / 2;
+      doc.text(text, x, yOffset);
+    };
+
+    // College header in PDF
+    doc.setFontSize(12);
+    centerText("DEPARTMENT OF MATHEMATICS", y); y += 7;
+    centerText("ACHARYA PRAFULLA CHANDRA ROY GOVT. COLLEGE", y); y += 7;
+    centerText("HIMACHAL BIHAR, MATIGARA, SILIGURI, DARJEELING, WB-734010", y); y += 7;
+    centerText("Website: www.apcrgc.org", y); y += 10;
+
+    if (from && to) {
+      centerText(`ATTENDANCE REPORT FROM ${from.toLocaleDateString()} TO ${to.toLocaleDateString()}`, y);
+    } else {
+      const monthYear = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+      centerText(`ATTENDANCE REPORT FOR THE MONTH OF ${monthYear}`, y);
+    }
+    y += 7;
+    centerText(semesterName || "Semester - ?", y);
+    y += 15;
+
+    doc.setFontSize(14);
+    centerText(`Attendance Report - ${selectedCourse}`, y);
+    y += 10;
+
+    const monthMap = {
+      Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+      Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+    };
+
+    const courseData = attendanceData[selectedCourse];
+    const tableBody = courseData.map(student => {
+      let totalHours = 0;
+      let presentHours = 0;
+      
+      student.processedMarks.forEach(entry => {
+        const dateParts = entry.date.split('-');
+        if (dateParts.length !== 2) return;
+        
+        const day = parseInt(dateParts[0], 10);
+        const month = monthMap[dateParts[1]];
+        if (isNaN(day) || month === undefined) return;
+        
+        const entryDate = new Date();
+        entryDate.setFullYear(new Date().getFullYear(), month, day);
+        entryDate.setHours(0, 0, 0, 0);
+        
+        if ((!from || entryDate >= new Date(from.setHours(0, 0, 0, 0))) &&
+            (!to || entryDate <= new Date(to.setHours(0, 0, 0, 0)))) {
+          totalHours += entry.hours;
+          presentHours += (entry.presentHours || 0);
+        }
+      });
+      
+      const percentage = totalHours
+        ? ((presentHours / totalHours) * 100).toFixed(2) + "%"
+        : "N/A (No Class)";
+        
+      return [student.name, `${presentHours}/${totalHours}`, percentage];
+    });
+
+    doc.autoTable({
+      startY: y,
+      head: [["Student Name", "Present/Total Hours", "Percentage"]],
+      body: tableBody,
+      theme: 'grid',
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [22, 160, 133] },
+      margin: { left: 14, right: 14 }
+    });
+
+    const fileName = from && to
+      ? `${selectedCourse}_attendance_${fromDate}_to_${toDate}.pdf`
+      : `${selectedCourse}_attendance_report.pdf`;
+
+    doc.save(fileName);
+  }
+</script>
+</body>
+</html>
